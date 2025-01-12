@@ -453,7 +453,36 @@ class LiteLLMModel(Model):
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
         return response.choices[0].message
+class LocalLLMModel(Model):
+    def __init__(self, api_base="http://localhost:9497", model_id="local-model", **kwargs):
+        super().__init__()
+        self.api_base = api_base
+        self.model_id = model_id
+        self.kwargs = kwargs
 
+    def __call__(self, messages: List[Dict[str, str]], max_tokens: int = 1500, **kwargs) -> str:
+        # Prepare the payload for the API request
+        payload = {
+            "model": self.model_id,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            **self.kwargs,
+            **kwargs
+        }
+       # print("Model messages:", messages)
+        # Make the API request to the local model
+        try:
+            response = requests.post(f"{self.api_base}/api/v1/generate", json=payload)
+            response.raise_for_status()  # Will raise an exception for 4xx/5xx status codes
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Error making request to the local model: {e}")
+
+        # Check if the request was successful
+        if response.status_code == 200:
+            data = response.json()
+            return data["results"][0]["text"]
+        else:
+            raise Exception(f"Error x: {response.status_code} - {response.text}")
 
 class OpenAIServerModel(Model):
     """This engine connects to an OpenAI-compatible API server.
